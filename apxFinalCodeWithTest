@@ -1,0 +1,92 @@
+public class apxWithAggregateResult {
+    
+    public class SocialInfo{
+        Integer none;
+        Integer twitter;
+        Integer facebook;
+        Integer both;
+        
+        public SocialInfo(){
+            none=0;
+            twitter=0;
+            facebook=0;
+            both=0;
+        }
+      
+    }
+    
+    public Map<id,SocialInfo> getResults(List<Account> accounts){
+        
+        //for storing results to return them
+        Map<Id,SocialInfo> accountResults = new Map<Id,SocialInfo>();
+        
+        //build a map of accountid to accounts using list accounts
+        Map<Id,Account> allAccounts = new Map<Id,Account>(accounts);
+        
+        //each accountid will have number of twits and faces
+        List<AggregateResult> sumSocials = [select AccountID, count(TwitterID__c) twit, count(FacebookID__c) face from Contact where AccountID in :allAccounts.keySet()
+                                           group by AccountID];
+        
+        for(AggregateResult ar : sumSocials){
+            SocialInfo si = new SocialInfo();
+            
+            //store each accountid with its corresponding socialinfo with details of twits and faces
+            accountResults.put((Id)ar.get('AccountId'), si);
+            
+            //update members of si with aggregateresult
+            si.twitter+= (Integer)ar.get('twit');
+            si.facebook+= (Integer)ar.get('face');
+            
+        }
+        
+        //to extract accountid with no twitter and facebook
+        List<Account> antiSocials =[select Id, (select Id from contacts where TwitterID__c = null and FacebookID__c = null) from Account 
+                                  where id in :allAccounts.keySet()];
+        for(Account a : antiSocials){
+            
+            SocialInfo s = accountResults.get(a.Id);
+            if(s == null){
+                s = new SocialInfo();
+            	accountResults.put(a.Id, s);
+                
+            }
+            s.None+= (Integer)a.contacts.size();
+        }
+           
+            //extract records that have both twitter and facebook
+            List<AggregateResult> bothResults = [select AccountID, count(FacebookID__c) ctr from Contact 
+                                                 where TwitterID__c != null and FacebookID__c != null and AccountID in :allAccounts.keySet() 
+                                                 group by AccountID];
+            
+            for(AggregateResult br : bothResults){
+                //check if there is this accountid stored in the map
+                SocialInfo sresult = accountResults.get((Id)br.get('AccountID'));
+                //if not then create socialinfo object and add a record to the map
+                //accountid is already stored in the map and stored now
+                //update the members of socialinfo
+                
+                if(sresult == null){
+                    sresult = new SocialInfo();
+                    accountResults.put((Id)br.get('AccountID'),sresult);
+                }
+                sresult.both+= (Integer)br.get('ctr');
+            }
+           
+       
+        
+        Set<ID> keys = new Set<ID>(accountResults.keySet());
+        
+        for(ID d : keys){
+            //System.debug('key ' + String.valueOf(d));
+        }
+       
+        
+        for(Account at : accounts){
+            System.debug('value ' + accountResults.get(at.Id));
+            
+        }
+        return accountResults;
+        
+    }
+
+}
